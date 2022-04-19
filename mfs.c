@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
+#include <stdint.h>
 
 #define MAX_NUM_ARGUMENTS 3
 
@@ -38,6 +39,55 @@
                                 // will separate the tokens on our command line
 
 #define MAX_COMMAND_SIZE 255    // The maximum command-line size
+
+
+// Struct holding the information of each entry in the FAT32 directory
+struct __atribute__((__packed__)) DirectoryEntry
+{
+  char DIR_Name[11];
+  uint8_t DIR_Attr;
+  uint8_t Unused1[8];
+  uint16_t DIR_FirstClusterHigh;
+  uint8_t Unused2[4];
+  uint16_t DIR_FirstClusterLow;
+  uint32_t DIR_FileSize;
+}
+
+// Struct holding information about the FAT32 directory
+struct f32info
+{
+  uint16_t BPB_BytsPerSec;
+  uint16_t BPB_RsvdSecCnt;
+  uint8_t BPB_NumFATS;
+  uint32_t BPB_FATSz32;
+
+}
+
+/*
+* Function    : LBAToOffset
+* Parameters  : The current sector number that points to a block of data and struct of the fat32 directory information
+* Returns     : The value of the address for that block of data
+* Description : Finds the starting address of a block of data given the sector number
+*               corresponding to that data block.
+*/
+
+int LBAToOffset(int32_t sector, struct f32info f32)
+{
+  return (( sector - 2 ) * f32.BPB_BytsPerSec) + (f32.BPB_BytsPerSec * f32.BPB_RsvdSecCnt) + (f32.BPD_NumFATs * f32.BPB_FATSz32 * f32.BPB_BytsPerSec);
+}
+
+/*
+* Function    : NextLB
+* Parameters  : Logical block address and struct of the fat32 directory information
+*/
+int16_t NextLB( uint32_t sector, struct f32info f32, FILE* fp )
+{
+  uint32_t FATAddress = ( f32.BPB_BytsPerSec * f32.BPB_RsvdSecCnt ) + ( sector * 4 );
+  int16_t val;
+  fseek( fp, FATAddress, SEEK_GET);
+  fread( &val, 2, 1, fp );
+  return val;
+}
 
 
 int main()
@@ -88,10 +138,81 @@ int main()
     // Now print the tokenized input as a debug check
     // \TODO Remove this code and replace with your FAT32 functionality
 
-    int token_index  = 0;
-    for( token_index = 0; token_index < token_count; token_index ++ ) 
+    // int token_index  = 0;
+    // for( token_index = 0; token_index < token_count; token_index ++ ) 
+    // {
+    //   printf("token[%d] = %s\n", token_index, token[token_index] );  
+    // }
+
+    // maybe could use switch statement instead?
+
+    // If the user types a blank line,
+    // the program quietly prints another prompt and accepts a new line of input.
+    if( token[0] == NULL );
+
+    // opens a fat32 image.
+    // filenames of fat32 images cannot not contain spaces and are limited to 100 characters.
+    // if the file is not found or if a file system is already open, the program will
+    // output the appropriate error.
+    else if ( !strcmp( token[0], "open" ))
     {
-      printf("token[%d] = %s\n", token_index, token[token_index] );  
+
+    }
+
+    // closes a fat32 image.
+    // if the file system is not currently open the program will give an error.
+    // any command issued after a close except for open will prompt the user to
+    // open a file system image first.
+    else if ( !strcmp( token[0], "close" ))
+    {
+
+    }
+
+    // prints out information about the file system in both hexadecimal and base 10.
+    else if ( !strcmp( token[0], "info" ))
+    {
+
+    }
+
+    // prints out the attributes and starting cluster number of the file/directory name.
+    // if the parameter is a directory name then the size is 0.
+    // if the file or directory does not exist then the program will output an error.
+    else if ( !strcmp( token[0], "stat" ))
+    {
+
+    }
+
+    // retrieves the file from the FAT32 image and places it in your current working directory.
+    // if the file/directory does not exist then the program will output an error.
+    else if ( !strcmp( token[0], "get" ))
+    {
+
+    }
+
+    // changes the current working directory to the given directory.
+    // supports both relative and absolute paths.
+    else if ( !strcmp( token[0], "cd" ))
+    {
+
+    }
+
+    // lists the directory contents.
+    // skips deleted files and system volume names.
+    else if ( !strcmp( token[0], "read" ))
+    {
+
+    }
+
+    // deletes the file from the file system
+    else if ( !strcmp( token[0], "del" ))
+    {
+
+    }
+
+    // un-deletes the file from the file system 
+    else if ( !strcmp( token[0], "undel" ))
+    {
+
     }
 
     free( working_root );
