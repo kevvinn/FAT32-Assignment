@@ -66,9 +66,9 @@ struct f32info
   int32_t BPB_FATSz32;
   int32_t BPB_RootClus;
 
-  int32_t RootDirSectors = 0;
-  int32_t FirstDataSector = 0;
-  int32_t FirstSectorofCluster = 0;
+  int32_t RootDirSectors;
+  int32_t FirstDataSector;
+  int32_t FirstSectorofCluster;
 };
 
 /*
@@ -81,7 +81,7 @@ struct f32info
 
 int LBAToOffset(int32_t sector, struct f32info *f32)
 {
-  return (( sector - 2 ) * f32->BPB_BytsPerSec) + (f32->BPB_BytsPerSec * f32->BPB_RsvdSecCnt) + (f32->BPD_NumFATs * f32->BPB_FATSz32 * f32->BPB_BytsPerSec);
+  return (( sector - 2 ) * f32->BPB_BytsPerSec) + (f32->BPB_BytsPerSec * f32->BPB_RsvdSecCnt) + (f32->BPB_NumFATS * f32->BPB_FATSz32 * f32->BPB_BytsPerSec);
 }
 
 /*
@@ -92,21 +92,16 @@ int16_t NextLB( uint32_t sector, struct f32info *f32, FILE* fp )
 {
   uint32_t FATAddress = ( f32->BPB_BytsPerSec * f32->BPB_RsvdSecCnt ) + ( sector * 4 );
   int16_t val;
-  fseek( fp, FATAddress, SEEK_GET);
+  fseek( fp, FATAddress, SEEK_SET);
   fread( &val, 2, 1, fp );
   return val;
 }
 
 // opens and reads the specified fat32 image. if image not found, returns null
-FILE* openFat32File(char *token, struct f32info *f32, struct DirectoryEntry *dir)
+FILE* openFat32File(char *filename, struct f32info *f32, struct DirectoryEntry *dir)
 {
-  if( token[1] == NULL )
-  {
-    print("Error: Filename not given.\n");
-    return NULL;
-  }
 
-  FILE *fp = fopen(token[1], "r");
+  FILE *fp = fopen(filename, "r");
 
   if(!fp)
   {
@@ -142,17 +137,21 @@ FILE* openFat32File(char *token, struct f32info *f32, struct DirectoryEntry *dir
   fseek( fp, 44, SEEK_SET );
   fread(&f32->BPB_RootClus, 4, 1, fp);
 
+  f32->RootDirSectors = 0;
+  f32->FirstDataSector = 0;
+  f32->FirstSectorofCluster = 0;
+
   return fp;
 }
 
 // prints out information about the file system in both hexadecimal and base 10
 void printFat32Info( struct f32info *f32)
 {
-  printf("\nBPB_BytsPerSec-- hex: %x | base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
-  printf("BPB_SecPerClus-- hex: %x | base10: %d\n", f32->BPB_SecPerClus, f32->BPB_SecPerClus);
-  printf("BPB_RsvdSecCnt-- hex: %x | base10: %d\n", f32->BPB_RsvdSecCnt, f32->BPB_RsvdSecCnt);
-  printf("BPB_NumFATS-- hex: %x | base10: %d\n", f32->BPB_NumFATS, f32->BPB_NumFATS);
-  printf("BPB_FATSz32-- hex: %x | base10: %d\n\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
+  printf("\n--BPB_BytsPerSec:\n    hex: %x\n    base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
+  printf("--BPB_SecPerClus:\n    hex: %x\n    base10: %d\n", f32->BPB_SecPerClus, f32->BPB_SecPerClus);
+  printf("--BPB_RsvdSecCnt:\n    hex: %x\n    base10: %d\n", f32->BPB_RsvdSecCnt, f32->BPB_RsvdSecCnt);
+  printf("--BPB_NumFATS:\n    hex: %x\n    base10: %d\n", f32->BPB_NumFATS, f32->BPB_NumFATS);
+  printf("--BPB_FATSz32:\n    hex: %x\n    base10: %d\n\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
 }
 
 int main()
@@ -160,7 +159,7 @@ int main()
 
   char * cmd_str = (char*) malloc( MAX_COMMAND_SIZE );
   
-  FILE *fp;
+  FILE *fp = NULL;
   struct f32info *fat32 = ( struct f32info *)malloc( sizeof( struct f32info ));
   struct DirectoryEntry *dir = ( struct DirectoryEntry * )malloc( sizeof( struct DirectoryEntry ) * 16 ); // since fat32 can only have 16 represented
 
@@ -214,8 +213,12 @@ int main()
     // output the appropriate error.
     else if ( !strcmp( token[0], "open" ))
     {
-      if ( fp == NULL ) fp = openFat32File(token, fat32, dir);
-      
+      if ( fp == NULL )
+      {
+        if (token[1] == NULL) printf("Error: Filename not given.\n");
+        else fp = openFat32File(token[1], fat32, dir);
+      }
+
       else printf( "Error: File system image is already open.\n" );
     }
 
@@ -232,12 +235,23 @@ int main()
       }
       else
       {
-        printf( "Error: File system not open." );
+        printf( "Error: File system not open.\n" );
       }
     }
 
+    // if the user types quit or exit, clean up and terminate program.
+    else if((strcmp(token[0],"quit") == 0) || (strcmp(token[0],"exit") == 0))
+    {
+      // cleanup
+      free( working_root );
+      if( fp != NULL ) fclose( fp );
+      free( fat32 );
+      free( dir );
+      exit(0);
+    }
+    
     // if a file is not open, any command issued will print out an error.
-    else if ( fp == NULL ) printf("Error: File system image must be opened first.");
+    else if ( fp == NULL ) printf("Error: File system image must be opened first.\n");
 
     // prints out information about the file system in both hexadecimal and base 10.
     else if ( !strcmp( token[0], "info" )) printFat32Info( fat32 );
@@ -247,7 +261,7 @@ int main()
     // if the file or directory does not exist then the program will output an error.
     else if ( !strcmp( token[0], "stat" ))
     {
-
+      
     }
 
     // retrieves the file from the FAT32 image and places it in your current working directory.
@@ -283,14 +297,11 @@ int main()
 
     }
 
+    else printf("Error: Unknown command.\n");
+
     free( working_root );
 
   }
-
-  // cleanup
-  if( fp != NULL ) fclose( fp );
-  free( fat32 );
-  free( dir );
 
   return 0;
 }
