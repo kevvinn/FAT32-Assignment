@@ -88,7 +88,7 @@ int LBAToOffset(int32_t sector, struct f32info *f32)
 * Function    : NextLB
 * Parameters  : Logical block address and struct of the fat32 directory information
 */
-int16_t NextLB( uint32_t sector, struct *f32info f32, FILE* fp )
+int16_t NextLB( uint32_t sector, struct f32info *f32, FILE* fp )
 {
   uint32_t FATAddress = ( f32->BPB_BytsPerSec * f32->BPB_RsvdSecCnt ) + ( sector * 4 );
   int16_t val;
@@ -145,14 +145,23 @@ FILE* openFat32File(char *token, struct f32info *f32, struct DirectoryEntry *dir
   return fp;
 }
 
+// prints out information about the file system in both hexadecimal and base 10
+void printFat32Info( struct f32info *f32)
+{
+  printf("\nBPB_BytsPerSec-- hex: %x | base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
+  printf("BPB_SecPerClus-- hex: %x | base10: %d\n", f32->BPB_SecPerClus, f32->BPB_SecPerClus);
+  printf("BPB_RsvdSecCnt-- hex: %x | base10: %d\n", f32->BPB_RsvdSecCnt, f32->BPB_RsvdSecCnt);
+  printf("BPB_NumFATS-- hex: %x | base10: %d\n", f32->BPB_NumFATS, f32->BPB_NumFATS);
+  printf("BPB_FATSz32-- hex: %x | base10: %d\n\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
+}
+
 int main()
 {
 
   char * cmd_str = (char*) malloc( MAX_COMMAND_SIZE );
   
   FILE *fp;
-  int file_is_open = 0;
-  struct f32info *fat32 = ( struct f32info *)malloc( sizeof( struct DirectoryEntry ) * 16 );
+  struct f32info *fat32 = ( struct f32info *)malloc( sizeof( struct f32info ));
   struct DirectoryEntry *dir = ( struct DirectoryEntry * )malloc( sizeof( struct DirectoryEntry ) * 16 ); // since fat32 can only have 16 represented
 
   while( 1 )
@@ -195,17 +204,6 @@ int main()
         token_count++;
     }
 
-    // Now print the tokenized input as a debug check
-    // \TODO Remove this code and replace with your FAT32 functionality
-
-    // int token_index  = 0;
-    // for( token_index = 0; token_index < token_count; token_index ++ ) 
-    // {
-    //   printf("token[%d] = %s\n", token_index, token[token_index] );  
-    // }
-
-    // maybe could use switch statement instead?
-
     // If the user types a blank line,
     // the program quietly prints another prompt and accepts a new line of input.
     if( token[0] == NULL );
@@ -216,15 +214,9 @@ int main()
     // output the appropriate error.
     else if ( !strcmp( token[0], "open" ))
     {
-      if ( !file_is_open )
-      {
-        fp = openFile(token, fat32, dir)
-        if ( fp != NULL ) file_is_open = 1;
-      }
-      else
-      {
-        printf( "Error: File system image is already open.\n" );
-      }
+      if ( fp == NULL ) fp = openFat32File(token, fat32, dir);
+      
+      else printf( "Error: File system image is already open.\n" );
     }
 
     // closes a fat32 image.
@@ -233,14 +225,22 @@ int main()
     // open a file system image first.
     else if ( !strcmp( token[0], "close" ))
     {
-
+      if ( fp != NULL )
+      {
+        fclose( fp );
+        fp = NULL;
+      }
+      else
+      {
+        printf( "Error: File system not open." );
+      }
     }
+
+    // if a file is not open, any command issued will print out an error.
+    else if ( fp == NULL ) printf("Error: File system image must be opened first.");
 
     // prints out information about the file system in both hexadecimal and base 10.
-    else if ( !strcmp( token[0], "info" ))
-    {
-
-    }
+    else if ( !strcmp( token[0], "info" )) printFat32Info( fat32 );
 
     // prints out the attributes and starting cluster number of the file/directory name.
     // if the parameter is a directory name then the size is 0.
@@ -288,8 +288,9 @@ int main()
   }
 
   // cleanup
-  if( file_is_open ) fclose( fp );
+  if( fp != NULL ) fclose( fp );
   free( fat32 );
   free( dir );
+
   return 0;
 }
