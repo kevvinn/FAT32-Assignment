@@ -42,7 +42,7 @@
 
 
 // Struct holding the information of each entry in the FAT32 directory
-struct __atribute__((__packed__)) DirectoryEntry
+struct __attribute__((__packed__)) DirectoryEntry
 {
   char DIR_Name[11];
   uint8_t DIR_Attr;
@@ -51,17 +51,25 @@ struct __atribute__((__packed__)) DirectoryEntry
   uint8_t Unused2[4];
   uint16_t DIR_FirstClusterLow;
   uint32_t DIR_FileSize;
-}
+};
 
 // Struct holding information about the FAT32 directory
 struct f32info
 {
-  uint16_t BPB_BytsPerSec;
-  uint16_t BPB_RsvdSecCnt;
-  uint8_t BPB_NumFATS;
-  uint32_t BPB_FATSz32;
+  char BS_OEMName[8];
+  int16_t BPB_BytsPerSec;
+  int8_t BPB_SecPerClus;
+  int16_t BPB_RsvdSecCnt;
+  int8_t BPB_NumFATS;
+  int16_t BPB_RootEntCnt;
+  char BS_VolLab[11];
+  int32_t BPB_FATSz32;
+  int32_t BPB_RootClus;
 
-}
+  int32_t RootDirSectors = 0;
+  int32_t FirstDataSector = 0;
+  int32_t FirstSectorofCluster = 0;
+};
 
 /*
 * Function    : LBAToOffset
@@ -71,29 +79,81 @@ struct f32info
 *               corresponding to that data block.
 */
 
-int LBAToOffset(int32_t sector, struct f32info f32)
+int LBAToOffset(int32_t sector, struct f32info *f32)
 {
-  return (( sector - 2 ) * f32.BPB_BytsPerSec) + (f32.BPB_BytsPerSec * f32.BPB_RsvdSecCnt) + (f32.BPD_NumFATs * f32.BPB_FATSz32 * f32.BPB_BytsPerSec);
+  return (( sector - 2 ) * f32->BPB_BytsPerSec) + (f32->BPB_BytsPerSec * f32->BPB_RsvdSecCnt) + (f32->BPD_NumFATs * f32->BPB_FATSz32 * f32->BPB_BytsPerSec);
 }
 
 /*
 * Function    : NextLB
 * Parameters  : Logical block address and struct of the fat32 directory information
 */
-int16_t NextLB( uint32_t sector, struct f32info f32, FILE* fp )
+int16_t NextLB( uint32_t sector, struct *f32info f32, FILE* fp )
 {
-  uint32_t FATAddress = ( f32.BPB_BytsPerSec * f32.BPB_RsvdSecCnt ) + ( sector * 4 );
+  uint32_t FATAddress = ( f32->BPB_BytsPerSec * f32->BPB_RsvdSecCnt ) + ( sector * 4 );
   int16_t val;
   fseek( fp, FATAddress, SEEK_GET);
   fread( &val, 2, 1, fp );
   return val;
 }
 
+// opens and reads the specified fat32 image. if image not found, returns null
+FILE* openFat32File(char *token, struct f32info *f32, struct DirectoryEntry *dir)
+{
+  if( token[1] == NULL )
+  {
+    print("Error: Filename not given.\n");
+    return NULL;
+  }
+
+  FILE *fp = fopen(token[1], "r");
+
+  if(!fp)
+  {
+    printf("Error: File system image not found.\n");
+    return NULL;
+  }
+
+  // seek and read fat32 directory information as specified by fatspec pdf
+  fseek( fp, 3, SEEK_SET );
+  fread(&f32->BS_OEMName, 8, 1, fp);
+
+  fseek( fp, 11, SEEK_SET );
+  fread(&f32->BPB_BytsPerSec, 2, 1, fp);
+  
+  fseek( fp, 13, SEEK_SET );
+  fread(&f32->BPB_SecPerClus, 1, 1, fp);
+
+  fseek( fp, 14, SEEK_SET );
+  fread(&f32->BPB_RsvdSecCnt, 2, 1, fp);
+
+  fseek( fp, 16, SEEK_SET );
+  fread(&f32->BPB_NumFATS, 1, 1, fp);
+
+  fseek( fp, 17, SEEK_SET );
+  fread(&f32->BPB_RootEntCnt, 2, 1, fp);
+
+  fseek( fp, 71, SEEK_SET );
+  fread(&f32->BS_VolLab, 11, 1, fp);
+
+  fseek( fp, 36, SEEK_SET );
+  fread(&f32->BPB_FATSz32, 4, 1, fp);
+
+  fseek( fp, 44, SEEK_SET );
+  fread(&f32->BPB_RootClus, 4, 1, fp);
+
+  return fp;
+}
 
 int main()
 {
 
   char * cmd_str = (char*) malloc( MAX_COMMAND_SIZE );
+  
+  FILE *fp;
+  int file_is_open = 0;
+  struct f32info *fat32 = ( struct f32info *)malloc( sizeof( struct DirectoryEntry ) * 16 );
+  struct DirectoryEntry *dir = ( struct DirectoryEntry * )malloc( sizeof( struct DirectoryEntry ) * 16 ); // since fat32 can only have 16 represented
 
   while( 1 )
   {
@@ -156,7 +216,15 @@ int main()
     // output the appropriate error.
     else if ( !strcmp( token[0], "open" ))
     {
-
+      if ( !file_is_open )
+      {
+        fp = openFile(token, fat32, dir)
+        if ( fp != NULL ) file_is_open = 1;
+      }
+      else
+      {
+        printf( "Error: File system image is already open.\n" );
+      }
     }
 
     // closes a fat32 image.
@@ -218,5 +286,10 @@ int main()
     free( working_root );
 
   }
+
+  // cleanup
+  if( file_is_open ) fclose( fp );
+  free( fat32 );
+  free( dir );
   return 0;
 }
