@@ -24,7 +24,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <sys/wait.h>
+// #include <sys/wait.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -140,18 +140,28 @@ FILE* openFat32File(char *filename, struct f32info *f32, struct DirectoryEntry *
   f32->RootDirSectors = 0;
   f32->FirstDataSector = 0;
   f32->FirstSectorofCluster = 0;
+  
+  int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
+
+  fseek( fp, rootOffset, SEEK_SET );
+  fread( &dir[0], 32, 16, fp ); // root directory contains 16 32-byte records
 
   return fp;
 }
 
 // prints out information about the file system in both hexadecimal and base 10
-void printFat32Info( struct f32info *f32)
+void printFat32Info( struct f32info *f32 )
 {
   printf("\n--BPB_BytsPerSec:\n    hex: %x\n    base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
   printf("--BPB_SecPerClus:\n    hex: %x\n    base10: %d\n", f32->BPB_SecPerClus, f32->BPB_SecPerClus);
   printf("--BPB_RsvdSecCnt:\n    hex: %x\n    base10: %d\n", f32->BPB_RsvdSecCnt, f32->BPB_RsvdSecCnt);
   printf("--BPB_NumFATS:\n    hex: %x\n    base10: %d\n", f32->BPB_NumFATS, f32->BPB_NumFATS);
   printf("--BPB_FATSz32:\n    hex: %x\n    base10: %d\n\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
+}
+
+void printStats( char *filename, struct DirectoryEntry *dir )
+{
+
 }
 
 int main()
@@ -261,7 +271,8 @@ int main()
     // if the file or directory does not exist then the program will output an error.
     else if ( !strcmp( token[0], "stat" ))
     {
-      
+      if (token[1] == NULL) printf("Error: Filename not given.\n");
+      else stat( token[1], dir );
     }
 
     // retrieves the file from the FAT32 image and places it in your current working directory.
