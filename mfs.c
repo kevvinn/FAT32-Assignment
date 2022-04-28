@@ -152,11 +152,11 @@ FILE* openFat32File(char *filename, struct f32info *f32, struct DirectoryEntry *
 // prints out information about the file system in both hexadecimal and base 10
 void printFat32Info( struct f32info *f32 )
 {
-  printf("\n--BPB_BytsPerSec:\n    hex: %x\n    base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
-  printf("--BPB_SecPerClus:\n    hex: %x\n    base10: %d\n", f32->BPB_SecPerClus, f32->BPB_SecPerClus);
-  printf("--BPB_RsvdSecCnt:\n    hex: %x\n    base10: %d\n", f32->BPB_RsvdSecCnt, f32->BPB_RsvdSecCnt);
-  printf("--BPB_NumFATS:\n    hex: %x\n    base10: %d\n", f32->BPB_NumFATS, f32->BPB_NumFATS);
-  printf("--BPB_FATSz32:\n    hex: %x\n    base10: %d\n\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
+  printf("\n--BPB_BytsPerSec:      hex: %-#10x  base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
+  printf("--BPB_SecPerClus:      hex: %-#10x  base10: %d\n", f32->BPB_SecPerClus, f32->BPB_SecPerClus);
+  printf("--BPB_RsvdSecCnt:      hex: %-#10x  base10: %d\n", f32->BPB_RsvdSecCnt, f32->BPB_RsvdSecCnt);
+  printf("--BPB_NumFATS:         hex: %-#10x  base10: %d\n", f32->BPB_NumFATS, f32->BPB_NumFATS);
+  printf("--BPB_FATSz32:         hex: %-#10x  base10: %d\n\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
 }
 
 void printStats( char *filename, struct DirectoryEntry *dir )
