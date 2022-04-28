@@ -161,7 +161,34 @@ void printFat32Info( struct f32info *f32 )
 
 void stat( char *filename, struct DirectoryEntry *dir )
 {
+    int i;
+    int filename_length = strlen( filename );
+    int file_not_found = 1;
+    char name_buffer[12];
 
+    // Search directory for entry
+    for( i = 0; i < 16; i++ )
+    {
+        if( strncmp( filename, dir[i].DIR_Name, filename_length ) == 0 ) // Found name match
+        {
+            file_not_found = 0;
+
+            strncpy( name_buffer, dir[i].DIR_Name, 11 ); // Copy 11 characters from DIR_Name (total size is 11 bytes) to name buffer
+            name_buffer[11] = '\0'; // Manually add null character in index 12
+
+            printf("Name:               %s \n", name_buffer);
+            printf("Attribute:          %#x \n", dir[i].DIR_Attr);
+            printf("FirstClusterHigh:   %u \n", dir[i].DIR_FirstClusterHigh);
+            printf("FirstClusterLow:    %u \n", dir[i].DIR_FirstClusterLow);
+            printf("FileSize:           %u \n", dir[i].DIR_FileSize);
+        }
+    }
+
+    // File was not found
+    if( file_not_found )
+    {
+        printf("Error: File not found. \n");
+    }
 }
 
 // lists all files and sub-directories contained in current directory
