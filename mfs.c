@@ -152,16 +152,42 @@ FILE* openFat32File(char *filename, struct f32info *f32, struct DirectoryEntry *
 // prints out information about the file system in both hexadecimal and base 10
 void printFat32Info( struct f32info *f32 )
 {
-  printf("\n--BPB_BytsPerSec:      hex: %-#10x  base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
+  printf("--BPB_BytsPerSec:      hex: %-#10x  base10: %d\n", f32->BPB_BytsPerSec, f32->BPB_BytsPerSec);
   printf("--BPB_SecPerClus:      hex: %-#10x  base10: %d\n", f32->BPB_SecPerClus, f32->BPB_SecPerClus);
   printf("--BPB_RsvdSecCnt:      hex: %-#10x  base10: %d\n", f32->BPB_RsvdSecCnt, f32->BPB_RsvdSecCnt);
   printf("--BPB_NumFATS:         hex: %-#10x  base10: %d\n", f32->BPB_NumFATS, f32->BPB_NumFATS);
-  printf("--BPB_FATSz32:         hex: %-#10x  base10: %d\n\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
+  printf("--BPB_FATSz32:         hex: %-#10x  base10: %d\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
 }
 
-void printStats( char *filename, struct DirectoryEntry *dir )
+void stat( char *filename, struct DirectoryEntry *dir )
 {
 
+}
+
+// lists all files and sub-directories contained in current directory
+void ls( struct DirectoryEntry *dir )
+{
+    int i;
+
+    // As DIR_Name does not terminate with a '\0' null character, 
+    // it needs to be added manually
+    char name_buffer[12];
+    char entry_attr;
+
+    for( i = 0; i < 16; i++ )
+    {
+        // Skip if directory entry is not a read-only file, a sub-directory, or an archive
+        entry_attr = dir[i].DIR_Attr;
+        if( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
+
+        strncpy( name_buffer, dir[i].DIR_Name, 11 ); // Copy 11 characters from DIR_Name (total size is 11 bytes) to name buffer
+        name_buffer[11] = '\0'; // Manually add null character in index 12
+
+        // Skip if directory entry is deleted
+        if( name_buffer[0] == 0xffffffe5 ) continue;
+
+        printf("%s \n", name_buffer); // Print name buffer
+    }
 }
 
 int main()
@@ -287,6 +313,13 @@ int main()
     else if ( !strcmp( token[0], "cd" ))
     {
 
+    }
+
+    // Lists the directory contents. Your program shall support listing “.” and “..” . Your program shall
+    // not list deleted files or system volume names.
+    else if ( !strcmp( token[0], "ls" ))
+    {
+        ls( dir );
     }
 
     // lists the directory contents.
