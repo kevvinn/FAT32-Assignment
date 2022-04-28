@@ -195,6 +195,7 @@ void stat( char *filename, struct DirectoryEntry *dir )
 void ls( struct DirectoryEntry *dir )
 {
     int i;
+    uint8_t first_byte;
 
     // As DIR_Name does not terminate with a '\0' null character, 
     // it needs to be added manually
@@ -211,7 +212,8 @@ void ls( struct DirectoryEntry *dir )
         name_buffer[11] = '\0'; // Manually add null character in index 12
 
         // Skip if directory entry is deleted
-        if( name_buffer[0] == 0xffffffe5 ) continue;
+        first_byte = name_buffer[0];
+        if( first_byte == 0xe5 ) continue;
 
         printf("%s \n", name_buffer); // Print name buffer
     }
