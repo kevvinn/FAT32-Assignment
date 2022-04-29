@@ -410,9 +410,9 @@ void read_file( char *filename, char* position, char* num_bytes, struct Director
             fseek( fp, LBAToOffset( nextSector, f32 ) +  position_int, SEEK_SET );
 
             int i, sector_index = 0;
-            for( i = 0; i < working_size; i++)
+            for( i = 0; i < working_size; i++) // print out every byte in hex
             {
-              if ( position_int + sector_index == sector_size )
+              if ( position_int + sector_index == sector_size ) // if reach end of sector, go to next sector
               {
                 position_int = 0;
                 sector_index = 0;
@@ -424,18 +424,6 @@ void read_file( char *filename, char* position, char* num_bytes, struct Director
               sector_index++;
             }
             printf("\n");
-            // fread( &data, sector_size - position_int, 1, fp);
-            // nextSector = NextLB( nextSector, f32, fp );
-
-            // while( working_size > sector_size )
-            // {
-            //   fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
-            //   // printf("working_size = %d\n", working_size);
-            //   fread( &data, sector_size, 1, fp );
-            //   working_size -= sector_size;
-            //   nextSector = NextLB( nextSector, f32, fp );
-              
-            // }
         }
     }
 
