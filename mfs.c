@@ -360,12 +360,7 @@ void cd( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *
 
 void cd_input( char *filepath, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
 {
-    if ( (strncmp(filepath, ".", strlen(filepath) ) == 0) || (strncmp(filepath, "..", strlen(filepath) ) == 0) )
-    {
-        cd( filepath, dir, f32, fp );
-        return;
-    }
-    else if ( filepath[0] == '/' ) // if starts with /, is absolute filepath. fseek and fread to root directory
+    if ( filepath[0] == '/' ) // if starts with /, is absolute filepath. fseek and fread to root directory
     {
         int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
         fseek( fp, rootOffset, SEEK_SET );
