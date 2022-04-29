@@ -410,7 +410,7 @@ void read_file( char *filename, char* position, char* num_bytes, struct Director
             fseek( fp, LBAToOffset( nextSector, f32 ) +  position_int, SEEK_SET );
 
             int i, sector_index = 0;
-            for( i = 0; i < working_size; i++) // print out every byte in hex
+            for( i = 0; i < working_size; i++) // print out every byte in hexadecimal
             {
               if ( position_int + sector_index == sector_size ) // if reach end of sector, go to next sector
               {
