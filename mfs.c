@@ -32,7 +32,7 @@
 #include <stdint.h>
 #include <ctype.h>
 
-#define MAX_NUM_ARGUMENTS 3
+#define MAX_NUM_ARGUMENTS 5
 
 #define WHITESPACE " \t\n"      // We want to split our command line up into tokens
                                 // so we need to define what delimits our tokens.
@@ -377,6 +377,7 @@ void get( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE 
     int filename_length = strlen( filename );
     int file_not_found = 1;
     int working_size;
+    int sector_size = f32->BPB_BytsPerSec;
     char name_buffer[12];
 
     // Search directory for entry
@@ -389,15 +390,15 @@ void get( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE 
             FILE *localfp = fopen( filename, "w" );
 
             int nextSector = dir[i].DIR_FirstClusterLow;
-            uint8_t data[512];
+            uint8_t data[sector_size];
 
-            while(working_size > 512)
+            while(working_size > sector_size)
             {
               // printf("working_size = %d\n", working_size);
               fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
-              fread( &data, 512, 1, fp );
-              fwrite( &data, 512, 1, localfp );
-              working_size -= 512;
+              fread( &data, sector_size, 1, fp );
+              fwrite( &data, sector_size, 1, localfp );
+              working_size -= sector_size;
               nextSector = NextLB( nextSector, f32, fp );
             }
             
@@ -421,7 +422,9 @@ void read_file( char *filename, char* position, char* num_bytes, struct Director
     int i;
     int filename_length = strlen( filename );
     int file_not_found = 1;
-    int working_size;
+    int working_size = atoi(num_bytes);
+    int sector_size = f32->BPB_BytsPerSec;
+    int position_int = atoi(position); // convert arguments to correct type
     char name_buffer[12];
 
     // Search directory for entry
@@ -430,25 +433,33 @@ void read_file( char *filename, char* position, char* num_bytes, struct Director
         if( compare_filename( filename, dir[i].DIR_Name ) ) // 1 = true, name matches. 0 = false, no match
         {
             file_not_found = 0;
-            working_size = dir[i].DIR_FileSize;
-            FILE *localfp = fopen( filename, "w" );
             
             int nextSector = dir[i].DIR_FirstClusterLow;
-            uint8_t data[512];
+            uint8_t data;
 
-            while(working_size > 512)
+            while( position_int >= sector_size ) // if position is larger than or equal to sector size, need to go to next sector
             {
-              // printf("working_size = %d\n", working_size);
-              fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
-              fread( &data, 512, 1, fp );
-              working_size -= 512;
+              position_int -= sector_size;
               nextSector = NextLB( nextSector, f32, fp );
             }
-            
-            fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
-            fread( &data, working_size, 1, fp);
 
-            fclose( localfp );
+            fseek( fp, LBAToOffset( nextSector, f32 ) +  position_int, SEEK_SET );
+
+            int i, sector_index = 0;
+            for( i = 0; i < working_size; i++) // print out every byte in hexadecimal
+            {
+              if ( position_int + sector_index == sector_size ) // if reach end of sector, go to next sector
+              {
+                position_int = 0;
+                sector_index = 0;
+                nextSector = NextLB( nextSector, f32, fp );
+                fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
+              }
+              fread( &data, 1, 1, fp );
+              printf( "%x ", data );
+              sector_index++;
+            }
+            printf("\n");
         }
     }
 
@@ -597,7 +608,7 @@ int main()
     // and outputs the number of bytes specified
     else if ( !strcmp( token[0], "read" ))
     {
-      if ( token_count < 4 ) printf("Error: Not enough arguments.\n");
+      if ( token_count - 1 < 4 ) printf("Error: Not enough arguments. (%d arguments given)\n", token_count);
       else read_file(token[1], token[2], token[3], dir, fat32, fp );
     }
 
