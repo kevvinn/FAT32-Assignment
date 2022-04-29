@@ -65,6 +65,7 @@ struct f32info
   char BS_VolLab[11];
   int32_t BPB_FATSz32;
   int32_t BPB_RootClus;
+  char originalFilenames[16][11];
 
   int32_t RootDirSectors;
   int32_t FirstDataSector;
@@ -146,6 +147,11 @@ FILE* openFat32File(char *filename, struct f32info *f32, struct DirectoryEntry *
   fseek( fp, rootOffset, SEEK_SET );
   fread( &dir[0], 32, 16, fp ); // root directory contains 16 32-byte records
 
+  int i;
+  for (i = 0; i < 16; i++)
+  {
+    f32->originalFilenames[i] = dir[i].DIR_Name;
+  }
   return fp;
 }
 
@@ -217,6 +223,76 @@ void ls( struct DirectoryEntry *dir )
 
         printf("%s \n", name_buffer); // Print name buffer
     }
+}
+
+void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE *fp )
+{
+    int i;
+    int filename_length = strlen( filename );
+    int file_not_found = 1;
+    char name_buffer[12];
+    char entry_attr;
+
+    // Search directory for entry
+    for( i = 0; i < 16; i++ )
+    {
+        entry_attr = dir[i].DIR_Attr;
+        if( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
+
+        if( strncmp( filename, dir[i].DIR_Name, filename_length ) == 0 ) // Found name match
+        {
+            file_not_found = 0;
+            dir[i].DIR_Name[0] = 0xe5;
+
+            // int offset = LBAToOffset( dir[i].DIR_FirstClusterLow, f32 ); //dir[i].DIR_FirstClusterLow
+            // fseek( fp, offset, SEEK_SET );
+            // fwrite( 0xe5, 1, 1, fp );
+              int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
+              fseek( fp, rootOffset, SEEK_SET );
+              fwrite( &dir[0], 32, 16, fp ); // update image file
+        }
+    }
+
+    // File was not found
+    if( file_not_found )
+    {
+        printf("Error: File not found. \n");
+    } 
+}
+
+void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE *fp )
+{
+    int i;
+    int filename_length = strlen( filename );
+    int file_not_found = 1;
+    char name_buffer[12];
+    char entry_attr;
+
+    // Search directory for entry
+    for( i = 0; i < 16; i++ )
+    {
+        entry_attr = dir[i].DIR_Attr;
+        if( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
+
+        if( strncmp( filename, dir[i].DIR_Name, filename_length ) == 0 ) // Found name match
+        {
+            file_not_found = 0;
+            dir[i].DIR_Name = f32->originalFilenames[i]; 
+
+            // int offset = LBAToOffset( dir[i].DIR_FirstClusterLow, f32 ); //dir[i].DIR_FirstClusterLow
+            // fseek( fp, offset, SEEK_SET );
+            // fwrite( 0xe5, 1, 1, fp );
+              int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
+              fseek( fp, rootOffset, SEEK_SET );
+              fwrite( &dir[0], 32, 16, fp ); // update image file
+        }
+    }
+
+    // File was not found
+    if( file_not_found )
+    {
+        printf("Error: File not found. \n");
+    } 
 }
 
 int main()
@@ -361,7 +437,8 @@ int main()
     // deletes the file from the file system
     else if ( !strcmp( token[0], "del" ))
     {
-
+      if (token[1] == NULL) printf("Error: Filename not given.\n");
+      else del ( token[1], dir, fat32, fp);
     }
 
     // un-deletes the file from the file system 
