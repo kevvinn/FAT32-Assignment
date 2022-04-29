@@ -186,6 +186,18 @@ int compare_filename( char *input, char *IMG_Name )
     memset( input_name, '\0', 12 );
     strncpy( input_name, input, strlen( input ) );
 
+    if ( strncmp( input_name, "..", 2 ) == 0 ) // User input ".."
+    {
+        if ( strncmp( input_name, IMG_Name, 2 ) == 0 ) // Match found
+        {
+            return 1;
+        }
+        else
+        {
+            return 0; // No match found
+        }
+    }
+
     char expanded_name[ 12 ];
     memset( expanded_name, ' ', 12 );
 
@@ -334,6 +346,11 @@ void cd( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *
         }
 
         int cluster = dir[ entry ].DIR_FirstClusterLow;
+
+        if ( cluster == 0 ) // Going to root
+        {
+            cluster = f32->BPB_RootClus;
+        }
         int offset = LBAToOffset( cluster, f32 );
 
         fseek( fp, offset, SEEK_SET );
