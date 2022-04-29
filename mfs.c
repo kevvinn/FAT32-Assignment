@@ -103,7 +103,7 @@ int16_t NextLB( uint32_t sector, struct f32info *f32, FILE* fp )
 FILE* openFat32File(char *filename, struct f32info *f32, struct DirectoryEntry *dir)
 {
 
-  FILE *fp = fopen(filename, "r");
+  FILE *fp = fopen(filename, "r+");
 
   if(!fp)
   {
@@ -148,10 +148,10 @@ FILE* openFat32File(char *filename, struct f32info *f32, struct DirectoryEntry *
   fseek( fp, rootOffset, SEEK_SET );
   fread( &dir[0], 32, 16, fp ); // root directory contains 16 32-byte records
 
-  int i;
+  int i, j;
   for (i = 0; i < 16; i++)
   {
-    f32->originalFilenames[i] = dir[i].DIR_Name;
+    strncpy(f32->originalFilenames[i], dir[0].DIR_Name, 11);
   }
   return fp;
 }
@@ -281,10 +281,10 @@ void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE
 
             // int offset = LBAToOffset( dir[i].DIR_FirstClusterLow, f32 ); //dir[i].DIR_FirstClusterLow
             // fseek( fp, offset, SEEK_SET );
-            // fwrite( 0xe5, 1, 1, fp );
-              int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
-              fseek( fp, rootOffset, SEEK_SET );
-              fwrite( &dir[0], 32, 16, fp ); // update image file
+            // fwrite( &( dir[i].DIR_Name[0] ), 1, 1, fp );
+            int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
+            fseek( fp, rootOffset, SEEK_SET );
+            fwrite( &dir[0], 32, 16, fp ); // update image file
         }
     }
 
@@ -295,7 +295,7 @@ void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE
     } 
 }
 
-void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE *fp )
+void undel( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE *fp )
 {
     int i;
     int filename_length = strlen( filename );
@@ -309,17 +309,17 @@ void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE
         entry_attr = dir[i].DIR_Attr;
         if( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
 
-        if( strncmp( filename, dir[i].DIR_Name, filename_length ) == 0 ) // Found name match
+        if( strncmp( filename, f32->originalFilenames[i], filename_length ) == 0 ) // Found name match
         {
             file_not_found = 0;
-            dir[i].DIR_Name = f32->originalFilenames[i]; 
+            dir[i].DIR_Name[0] = f32->originalFilenames[i][0]; 
 
             // int offset = LBAToOffset( dir[i].DIR_FirstClusterLow, f32 ); //dir[i].DIR_FirstClusterLow
             // fseek( fp, offset, SEEK_SET );
-            // fwrite( 0xe5, 1, 1, fp );
-              int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
-              fseek( fp, rootOffset, SEEK_SET );
-              fwrite( &dir[0], 32, 16, fp ); // update image file
+            // fwrite( &( dir[i].DIR_Name[0] ), 1, 1, fp );
+            int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
+            fseek( fp, rootOffset, SEEK_SET );
+            fwrite( &dir[0], 32, 16, fp ); // update image file
         }
     }
 
@@ -462,8 +462,8 @@ int main()
         ls( dir );
     }
 
-    // lists the directory contents.
-    // skips deleted files and system volume names.
+    // Reads from the given file at the position, in bytes, specified by the parameter,
+    // and outputs the number of bytes specified
     else if ( !strcmp( token[0], "read" ))
     {
 
@@ -479,7 +479,8 @@ int main()
     // un-deletes the file from the file system 
     else if ( !strcmp( token[0], "undel" ))
     {
-
+      if (token[1] == NULL) printf("Error: Filename not given.\n");
+      else undel ( token[1], dir, fat32, fp);
     }
 
     else printf("Error: Unknown command.\n");
