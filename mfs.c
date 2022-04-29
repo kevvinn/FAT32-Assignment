@@ -286,38 +286,6 @@ void stat( char *filename, struct DirectoryEntry *dir )
 }
 
 /*
- * Function    : ls
- * Parameters  : Directory entry array
- * Description : Lists all files and sub-directories contained in current directory
- */
-void ls( struct DirectoryEntry *dir )
-{
-    int i;
-    uint8_t first_byte;
-
-    // As DIR_Name does not terminate with a '\0' null character,
-    // it needs to be added manually
-    char name_buffer[ 12 ];
-    char entry_attr;
-
-    for ( i = 0; i < 16; i++ )
-    {
-        // Skip if directory entry is not a read-only file, a sub-directory, or an archive
-        entry_attr = dir[ i ].DIR_Attr;
-        if ( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
-
-        strncpy( name_buffer, dir[ i ].DIR_Name, 11 ); // Copy 11 characters from DIR_Name (total size is 11 bytes) to name buffer
-        name_buffer[ 11 ] = '\0';                      // Manually add null character in index 12
-
-        // Skip if directory entry is deleted
-        first_byte = name_buffer[ 0 ];
-        if ( first_byte == 0xe5 ) continue;
-
-        printf( "%s \n", name_buffer ); // Print name buffer
-    }
-}
-
-/*
  * Function    : cd
  * Parameters  : User filename input, directory, fat32info, and the current file pointer
  * Description : Changes the currect working directory to the given directory
@@ -383,6 +351,62 @@ void cd_input( char *filepath, struct DirectoryEntry *dir, struct f32info *f32, 
     for( token_index = 0; token_index < token_cnt; token_index ++ )
     {
         cd( file_token[token_index], dir, f32, fp );
+    }
+}
+
+/*
+ * Function    : ls
+ * Parameters  : User filename input, directory, fat32info, and the current file pointer
+ * Description : Lists all files and sub-directories contained in specified directory
+ */
+void ls( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
+{
+    int i;
+    uint8_t first_byte;
+    char input_name[ 12 ];
+    char cwd[] = ".";
+    memset( input_name, '\0', 12 );
+
+    if ( filename == NULL ) // No user input, sets input to "."
+    {
+        strncpy( input_name, cwd, sizeof( cwd ) );
+    }
+    else
+    {
+        strncpy( input_name, filename, 11 );
+    }
+
+    if ( strlen( input_name ) > 1 ) // User input bigger than "."
+    {
+        cd( input_name, dir, f32, fp );
+    }
+    else if ( strncmp( input_name, ".", strlen( input_name ) ) == 0 ) // User input "."
+        ;
+    else
+    {
+        printf( "Error: Invalid input. \n" );
+        return;
+    }
+
+    // As DIR_Name does not terminate with a '\0' null character,
+    // it needs to be added manually
+    char name_buffer[ 12 ];
+    char entry_attr;
+
+    for ( i = 0; i < 16; i++ )
+    {
+        // Skip if directory entry is not a read-only file, a sub-directory, or an archive
+        entry_attr = dir[ i ].DIR_Attr;
+        if ( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
+
+        strncpy( name_buffer, dir[ i ].DIR_Name, 11 ); // Copy 11 characters from DIR_Name (total size is 11 bytes) to name buffer
+        name_buffer[ 11 ] = '\0';                      // Manually add null character in index 12
+
+        // Skip if directory entry is deleted
+        first_byte = name_buffer[ 0 ];
+        if ( first_byte == 0xe5 ) continue;
+
+        printf( "%s \n", name_buffer ); // Print name buffer
     }
 }
 
@@ -685,7 +709,7 @@ int main()
         // not list deleted files or system volume names.
         else if ( !strcmp( token[ 0 ], "ls" ) )
         {
-            ls( dir );
+            ls( token[ 1 ], dir, fat32, fp );
         }
 
         // Reads from the given file at the position, in bytes, specified by the parameter,
