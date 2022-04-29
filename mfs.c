@@ -279,7 +279,7 @@ void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE
         entry_attr = dir[i].DIR_Attr;
         if( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
 
-        if( strncmp( filename, dir[i].DIR_Name, filename_length ) == 0 ) // Found name match
+        if( compare_filename( filename, dir[i].DIR_Name ) ) // Found name match
         {
             file_not_found = 0;
             dir[i].DIR_Name[0] = 0xe5;
@@ -314,7 +314,7 @@ void undel( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FI
         entry_attr = dir[i].DIR_Attr;
         if( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
 
-        if( strncmp( filename, f32->originalFilenames[i], filename_length ) == 0 ) // Found name match
+        if( compare_filename( filename, f32->originalFilenames[i] ) ) // Found name match
         {
             file_not_found = 0;
             dir[i].DIR_Name[0] = f32->originalFilenames[i][0]; 
@@ -333,6 +333,94 @@ void undel( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FI
     {
         printf("Error: File not found. \n");
     } 
+}
+
+void get( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
+{
+    int i;
+    int filename_length = strlen( filename );
+    int file_not_found = 1;
+    int working_size;
+    char name_buffer[12];
+
+    // Search directory for entry
+    for( i = 0; i < 16; i++ )
+    {
+        if( compare_filename( filename, dir[i].DIR_Name ) ) // 1 = true, name matches. 0 = false, no match
+        {
+            file_not_found = 0;
+            working_size = dir[i].DIR_FileSize;
+            FILE *localfp = fopen( filename, "w" );
+
+            int nextSector = dir[i].DIR_FirstClusterLow;
+            uint8_t data[512];
+
+            while(working_size > 512)
+            {
+              // printf("working_size = %d\n", working_size);
+              fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
+              fread( &data, 512, 1, fp );
+              fwrite( &data, 512, 1, localfp );
+              working_size -= 512;
+              nextSector = NextLB( nextSector, f32, fp );
+            }
+            
+            fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
+            fread( &data, working_size, 1, fp);
+            fwrite( &data, working_size, 1, localfp );
+
+            fclose( localfp );
+        }
+    }
+
+    // File was not found
+    if( file_not_found )
+    {
+        printf("Error: File not found. \n");
+    }
+}
+
+void read_file( char *filename, char* position, char* num_bytes, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
+{
+    int i;
+    int filename_length = strlen( filename );
+    int file_not_found = 1;
+    int working_size;
+    char name_buffer[12];
+
+    // Search directory for entry
+    for( i = 0; i < 16; i++ )
+    {
+        if( compare_filename( filename, dir[i].DIR_Name ) ) // 1 = true, name matches. 0 = false, no match
+        {
+            file_not_found = 0;
+            working_size = dir[i].DIR_FileSize;
+            FILE *localfp = fopen( filename, "w" );
+            
+            int nextSector = dir[i].DIR_FirstClusterLow;
+            uint8_t data[512];
+
+            while(working_size > 512)
+            {
+              // printf("working_size = %d\n", working_size);
+              fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
+              fread( &data, 512, 1, fp );
+              working_size -= 512;
+              nextSector = NextLB( nextSector, f32, fp );
+            }
+            
+            fseek( fp, LBAToOffset( nextSector, f32 ) , SEEK_SET );
+            fread( &data, working_size, 1, fp);
+
+            fclose( localfp );
+        }
+    }
+
+    // File was not found
+    if( file_not_found )
+    {
+        printf("Error: File not found. \n");
+    }
 }
 
 int main()
@@ -450,7 +538,8 @@ int main()
     // if the file/directory does not exist then the program will output an error.
     else if ( !strcmp( token[0], "get" ))
     {
-
+      if (token[1] == NULL) printf("Error: Filename not given.\n");
+      else get( token[1], dir, fat32, fp );
     }
 
     // changes the current working directory to the given directory.
@@ -471,7 +560,8 @@ int main()
     // and outputs the number of bytes specified
     else if ( !strcmp( token[0], "read" ))
     {
-
+      if ( token_count < 4 ) printf("Error: Not enough arguments.\n");
+      else read_file(token[1], token[2], token[3], dir, fat32, fp );
     }
 
     // deletes the file from the file system
