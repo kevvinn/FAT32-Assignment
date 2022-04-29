@@ -358,6 +358,39 @@ void cd( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *
     }
 }
 
+void cd_input( char *filepath, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
+{
+    if ( (strncmp(filepath, ".", strlen(filepath) ) == 0) || (strncmp(filepath, "..", strlen(filepath) ) == 0) )
+    {
+        cd( filepath, dir, f32, fp );
+        return;
+    }
+    else if ( filepath[0] == '/' ) // if starts with /, is absolute filepath. fseek and fread to root directory
+    {
+        int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
+        fseek( fp, rootOffset, SEEK_SET );
+        fread( &dir[ 0 ], 32, 16, fp );
+    }
+
+    char *working_token = strtok( filepath, "/" );
+    char *file_token[50];
+    int token_cnt = 0;
+
+    while ( working_token != NULL )
+    {
+        file_token[token_cnt] = ( char *)malloc( sizeof( strlen( working_token )));
+        strncpy( file_token[token_cnt], working_token, strlen(working_token) );
+        working_token = strtok ( NULL, "/" );
+        token_cnt++;
+    }
+
+    int token_index = 0;
+    for( token_index = 0; token_index < token_cnt; token_index ++ )
+    {
+        cd( file_token[token_index], dir, f32, fp );
+    }
+}
+
 /*
  * Function    : del
  * Parameters  : User filename input, directory, fat32info, and the current file pointer
@@ -650,7 +683,7 @@ int main()
         else if ( !strcmp( token[ 0 ], "cd" ) )
         {
             if ( token[ 1 ] == NULL ) printf( "Error: Filename not given.\n" );
-            else cd( token[ 1 ], dir, fat32, fp );
+            else cd_input( token[ 1 ], dir, fat32, fp );
         }
 
         // Lists the directory contents. Your program shall support listing “.” and “..” . Your program shall
