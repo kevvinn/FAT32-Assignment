@@ -30,6 +30,7 @@
 #include <string.h>
 #include <signal.h>
 #include <stdint.h>
+#include <ctype.h>
 
 #define MAX_NUM_ARGUMENTS 3
 
@@ -159,6 +160,40 @@ void printFat32Info( struct f32info *f32 )
   printf("--BPB_FATSz32:         hex: %-#10x  base10: %d\n", f32->BPB_FATSz32, f32->BPB_FATSz32);
 }
 
+int compare_filename( char * input, char * IMG_Name )
+{
+    char expanded_name[12];
+    memset( expanded_name, ' ', 12 );
+
+    char *token = strtok( input, "." );
+
+    strncpy( expanded_name, token, strlen( token ) );
+
+    token = strtok( NULL, "." );
+
+    if( token )
+    {
+        strncpy( (char*)(expanded_name + 8), token, strlen( token ) );
+    }
+
+    expanded_name[11] = '\0';
+
+    int i;
+    for( i = 0; i < 11; i++ )
+    {
+        expanded_name[i] = toupper( expanded_name[i] );
+    }
+
+    if( strncmp( expanded_name, IMG_Name, 11 ) == 0 )
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 void stat( char *filename, struct DirectoryEntry *dir )
 {
     int i;
@@ -169,7 +204,7 @@ void stat( char *filename, struct DirectoryEntry *dir )
     // Search directory for entry
     for( i = 0; i < 16; i++ )
     {
-        if( strncmp( filename, dir[i].DIR_Name, filename_length ) == 0 ) // Found name match
+        if( compare_filename( filename, dir[i].DIR_Name ) ) // 1 = true, name matches. 0 = false, no match
         {
             file_not_found = 0;
 
