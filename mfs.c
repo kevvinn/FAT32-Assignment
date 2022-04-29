@@ -265,6 +265,42 @@ void ls( struct DirectoryEntry *dir )
     }
 }
 
+void cd( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
+{
+    int i;
+    int file_not_found = 1;
+    char entry_attr;
+
+    // Search directory for entry
+    for( i = 0; i < 16; i++ )
+    {
+        if( compare_filename( filename, dir[i].DIR_Name ) ) // 1 = true, name matches. 0 = false, no match
+        {
+            // Fails if selected entry is not a directory
+            entry_attr = dir[i].DIR_Attr;
+            if( entry_attr != 0x10 )
+            {
+                printf("Error: Entry is not a directory. \n");
+                return;
+            }
+
+            file_not_found = 0;
+
+            int cluster = dir[i].DIR_FirstClusterLow;
+            int offset = LBAToOffset( cluster, f32 );
+
+            fseek( fp, offset, SEEK_SET );
+            fread( &dir[0], 32, 16, fp );
+        }
+    }
+
+    // File was not found
+    if( file_not_found )
+    {
+        printf("Error: File not found. \n");
+    }
+}
+
 void del( char *filename, struct DirectoryEntry *dir , struct f32info *f32, FILE *fp )
 {
     int i;
@@ -546,7 +582,8 @@ int main()
     // supports both relative and absolute paths.
     else if ( !strcmp( token[0], "cd" ))
     {
-
+      if (token[1] == NULL) printf("Error: Filename not given.\n");
+      else cd( token[1], dir, fat32, fp );
     }
 
     // Lists the directory contents. Your program shall support listing “.” and “..” . Your program shall
