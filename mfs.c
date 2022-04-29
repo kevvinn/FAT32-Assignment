@@ -168,18 +168,22 @@ void printFat32Info( struct f32info *f32 )
 
 int compare_filename( char * input, char * IMG_Name )
 {
+    char input_name[12];
+    memset( input_name, '\0', 12 );
+    strncpy( input_name, input, strlen( input ) );
+
     char expanded_name[12];
     memset( expanded_name, ' ', 12 );
 
-    char *token = strtok( input, "." );
+    char *token = strtok( input_name, "." ); // input copied to input_name, so that input isn't overwritten by strtok()
 
-    strncpy( expanded_name, token, strlen( token ) );
+    strncpy( expanded_name, token, strlen( token ) ); // File name
 
     token = strtok( NULL, "." );
 
     if( token )
     {
-        strncpy( (char*)(expanded_name + 8), token, strlen( token ) );
+        strncpy( (char*)(expanded_name + 8), token, 3 ); // File extension, 3 characters, 3 bytes
     }
 
     expanded_name[11] = '\0';
@@ -190,11 +194,12 @@ int compare_filename( char * input, char * IMG_Name )
         expanded_name[i] = toupper( expanded_name[i] );
     }
 
-    if( strncmp( expanded_name, IMG_Name, 11 ) == 0 )
+    int result = strncmp( expanded_name, IMG_Name, 11 );
+    if( result == 0 ) // Match found
     {
         return 1;
     }
-    else
+    else // No match found
     {
         return 0;
     }
