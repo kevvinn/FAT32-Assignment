@@ -65,12 +65,28 @@ struct f32info
     char BS_VolLab[ 11 ];
     int32_t BPB_FATSz32;
     int32_t BPB_RootClus;
-    char originalFilenames[ 16 ][ 11 ];
 
     int32_t RootDirSectors;
     int32_t FirstDataSector;
     int32_t FirstSectorofCluster;
 };
+
+// Struct for holding deleted filenames
+struct deletedFile
+{
+    char name[ 11 ];
+    struct deletedFile *next;
+};
+
+struct deletedFile *head = NULL;
+
+// Creates and initializes deleted file
+struct deletedFile *create_deletedFile()
+{
+    struct deletedFile *new = ( struct deletedFile * )malloc( sizeof( struct deletedFile ) );
+    new->next = NULL;
+    return new;
+}
 
 /*
  * Function    : LBAToOffset
@@ -152,11 +168,6 @@ FILE *openFat32File( char *filename, struct f32info *f32, struct DirectoryEntry 
     fseek( fp, rootOffset, SEEK_SET );
     fread( &dir[ 0 ], 32, 16, fp ); // root directory contains 16 32-byte records
 
-    int i, j;
-    for ( i = 0; i < 16; i++ )
-    {
-        strncpy( f32->originalFilenames[ i ], dir[ 0 ].DIR_Name, 11 );
-    }
     return fp;
 }
 
@@ -219,6 +230,65 @@ int compare_filename( char *input, char *IMG_Name )
     {
         expanded_name[ i ] = toupper( expanded_name[ i ] );
     }
+
+    int result = strncmp( expanded_name, IMG_Name, 11 );
+    if ( result == 0 ) // Match found
+    {
+        return 1;
+    }
+    else // No match found
+    {
+        return 0;
+    }
+}
+
+/*
+ * Function    : compare_deleted_filename
+ * Parameters  : User filename input and directory entry filename
+ * Returns     : Returns 1 if matches (success), 0 if doesn't match (failure)
+ * Description : Checks if the user filename matches the deleted entry filename
+ */
+int compare_deleted_filename( char *input, char *IMG_Name )
+{
+    char input_name[ 12 ];
+    memset( input_name, '\0', 12 );
+    strncpy( input_name, input, strlen( input ) );
+
+    if ( strncmp( input_name, "..", 2 ) == 0 ) // User input ".."
+    {
+        if ( strncmp( input_name, IMG_Name, 2 ) == 0 ) // Match found
+        {
+            return 1;
+        }
+        else
+        {
+            return 0; // No match found
+        }
+    }
+
+    char expanded_name[ 12 ];
+    memset( expanded_name, ' ', 12 );
+
+    char *token = strtok( input_name, "." ); // input copied to input_name, so that input isn't overwritten by strtok()
+
+    strncpy( expanded_name, token, strlen( token ) ); // File name (token) copied over, limited to 11 characters
+
+    token = strtok( NULL, "." );
+
+    if ( token )
+    {
+        strncpy( ( char * )( expanded_name + 8 ), token, 3 ); // File extension, 3 characters, 3 bytes
+    }
+
+    expanded_name[ 11 ] = '\0';
+
+    int i;
+    for ( i = 0; i < 11; i++ )
+    {
+        expanded_name[ i ] = toupper( expanded_name[ i ] );
+    }
+
+    expanded_name[ 0 ] = 0xe5; // Makes file name deleted *
 
     int result = strncmp( expanded_name, IMG_Name, 11 );
     if ( result == 0 ) // Match found
@@ -441,13 +511,23 @@ void del( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE 
     // File found
     else
     {
+        struct deletedFile *new = create_deletedFile();
+        strncpy( new->name, dir[ entry ].DIR_Name, 11 );
+
+        struct deletedFile *runner = head;
+        while ( runner->next != NULL )
+        {
+            runner = runner->next;
+        }
+        runner->next = new;
+
         dir[ entry ].DIR_Name[ 0 ] = 0xe5;
 
         // int offset = LBAToOffset( dir[i].DIR_FirstClusterLow, f32 ); //dir[i].DIR_FirstClusterLow
         // fseek( fp, offset, SEEK_SET );
         // fwrite( &( dir[i].DIR_Name[0] ), 1, 1, fp );
-        int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
-        fseek( fp, rootOffset, SEEK_SET );
+        int offset = LBAToOffset( dir[ 0 ].DIR_FirstClusterLow, f32 );
+        fseek( fp, offset, SEEK_SET );
         fwrite( &dir[ 0 ], 32, 16, fp ); // update image file
     }
 }
@@ -460,26 +540,33 @@ void del( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE 
 void undel( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
 {
     int i;
+    int file_deleted = 0;
     int file_not_found = 1;
     char entry_attr;
 
     // Search directory for entry
-    for ( i = 0; i < 16; i++ )
+    struct deletedFile *runner = head;
+    while ( runner->next != NULL )
     {
-        entry_attr = dir[ i ].DIR_Attr;
-        if ( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
-
-        if ( compare_filename( filename, f32->originalFilenames[ i ] ) ) // Found name match
+        if ( compare_filename( filename, runner->next->name ) ) // Found name match
         {
-            file_not_found = 0;
-            dir[ i ].DIR_Name[ 0 ] = f32->originalFilenames[ i ][ 0 ];
+            file_deleted = 1;
+            break;
+        }
+        else runner = runner->next;
+    }
+    if ( file_deleted )
+    {
+        for ( i = 0; i < 16; i++ )
+        {
+            entry_attr = dir[ i ].DIR_Attr;
+            if ( entry_attr != 0x01 && entry_attr != 0x10 && entry_attr != 0x20 ) continue;
 
-            // int offset = LBAToOffset( dir[i].DIR_FirstClusterLow, f32 ); //dir[i].DIR_FirstClusterLow
-            // fseek( fp, offset, SEEK_SET );
-            // fwrite( &( dir[i].DIR_Name[0] ), 1, 1, fp );
-            int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
-            fseek( fp, rootOffset, SEEK_SET );
-            fwrite( &dir[ 0 ], 32, 16, fp ); // update image file
+            if ( compare_deleted_filename( filename, dir[ i ].DIR_Name ) ) // Found name match
+            {
+                file_not_found = 0;
+                break;
+            }
         }
     }
 
@@ -487,6 +574,22 @@ void undel( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FIL
     if ( file_not_found )
     {
         printf( "Error: File not found. \n" );
+    }
+    else
+    {
+        dir[ i ].DIR_Name[ 0 ] = runner->next->name[ 0 ];
+
+        // int offset = LBAToOffset( dir[i].DIR_FirstClusterLow, f32 ); //dir[i].DIR_FirstClusterLow
+        // fseek( fp, offset, SEEK_SET );
+        // fwrite( &( dir[i].DIR_Name[0] ), 1, 1, fp );
+        int offset = LBAToOffset( dir[ 0 ].DIR_FirstClusterLow, f32 );
+        fseek( fp, offset, SEEK_SET );
+        fwrite( &dir[ 0 ], 32, 16, fp ); // update image file
+
+        // Delete file entry node
+        struct deletedFile *old = runner->next;
+        runner->next = runner->next->next;
+        free( old );
     }
 }
 
@@ -595,6 +698,7 @@ int main()
     FILE *fp = NULL;
     struct f32info *fat32 = ( struct f32info * )malloc( sizeof( struct f32info ) );
     struct DirectoryEntry *dir = ( struct DirectoryEntry * )malloc( sizeof( struct DirectoryEntry ) * 16 ); // since fat32 can only have 16 represented
+    head = create_deletedFile();
 
     while ( 1 )
     {
@@ -682,6 +786,14 @@ int main()
             if ( fp != NULL ) fclose( fp );
             free( fat32 );
             free( dir );
+            struct deletedFile *runner = head;
+            while ( runner != NULL )
+            {
+                struct deletedFile *delete = runner;
+                runner = runner->next;
+                free( delete );
+            }
+
             exit( 0 );
         }
 
