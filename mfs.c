@@ -1,3 +1,17 @@
+/*
+   CSE 3320 - Operating Systems
+   Professor Trevor Bakker
+   Programming Assignment 4: FAT32-Assignment 
+   
+   NOTE: We did extra credit for relative and absolute paths for cd
+   and ls commands. 
+
+   Name:   Ariel Rico
+   UTA ID: 1001872003
+
+   Name:   Kevin Vu
+   UTA ID: 1001795250
+*/
 // The MIT License (MIT)
 //
 // Copyright (c) 2020 Trevor Bakker
@@ -365,6 +379,8 @@ void cd( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *
     int entry;
     char entry_attr;
 
+    if( strncmp( filename, ".", strlen(filename)) == 0 ) return;
+
     entry = find_file( filename, dir );
 
     // File not found
@@ -398,6 +414,8 @@ void cd( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *
 
 void cd_input( char *filepath, struct DirectoryEntry *dir, struct f32info *f32, FILE *fp )
 {
+    if ( filepath == NULL ) return;
+
     if ( filepath[ 0 ] == '/' ) // if starts with /, is absolute filepath. fseek and fread to root directory
     {
         int rootOffset = LBAToOffset( f32->BPB_RootClus, f32 );
@@ -434,7 +452,6 @@ void ls( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *
     int i;
     uint8_t first_byte;
     char input_name[ 12 ];
-    char cwd[] = ".";
     memset( input_name, '\0', 12 );
     struct DirectoryEntry *original_dir = ( struct DirectoryEntry * )malloc( sizeof( struct DirectoryEntry ) * 16 ); // since fat32 can only have 16 represented
 
@@ -442,28 +459,9 @@ void ls( char *filename, struct DirectoryEntry *dir, struct f32info *f32, FILE *
     {
         original_dir[ i ] = dir[ i ];
     }
-
-    if ( filename == NULL ) // No user input, sets input to "."
-    {
-        strncpy( input_name, cwd, sizeof( cwd ) );
-    }
-    else
-    {
-        strncpy( input_name, filename, 11 );
-    }
-
-    if ( strlen( input_name ) > 1 ) // User input bigger than "."
-    {
-        cd( input_name, dir, f32, fp );
-    }
-    else if ( strncmp( input_name, ".", strlen( input_name ) ) == 0 ) // User input "."
-        ;
-    else
-    {
-        printf( "Error: Invalid input. \n" );
-        return;
-    }
-
+    
+    cd_input( filename, dir, f32, fp );
+    
     // As DIR_Name does not terminate with a '\0' null character,
     // it needs to be added manually
     char name_buffer[ 12 ];
@@ -682,8 +680,8 @@ void read_file( char *filename, char *position, char *num_bytes, struct Director
                 fseek( fp, LBAToOffset( nextSector, f32 ), SEEK_SET );
             }
             fread( &data, 1, 1, fp );
-            // printf( "%x ", data );
-            printf( "%c", data );
+            printf( "%x ", data );
+            // printf( "%c", data );
             sector_index++;
         }
         printf( "\n" );
